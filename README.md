@@ -37,25 +37,29 @@ Three layers, kept separate so each is testable on its own:
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-* **Service layer** (`CallNotesService`) holds pure business logic — no `@AuraEnabled`, no LWC concerns. Bulkified from day one so the same code path is reusable from triggers, queueables, batches.
-* **Handler layer** (`CallNotesHandler`, `AccountActivityController`) is the only entry point from LWC. Translates loose JS payloads into typed DTOs, catches `CallNotesException` and unexpected exceptions, and rethrows them as `AuraHandledException` (with `setMessage()` so the message actually surfaces — that's a known platform quirk).
-* **Async layer** (`OpportunityInactivityBatch`) implements both `Database.Batchable<sObject>` and `Schedulable` so a single class scans, groups, and schedules.
+- **Service layer** (`CallNotesService`) holds pure business logic — no `@AuraEnabled`, no LWC concerns. Bulkified from day one so the same code path is reusable from triggers, queueables, batches.
+- **Handler layer** (`CallNotesHandler`, `AccountActivityController`) is the only entry point from LWC. Translates loose JS payloads into typed DTOs, catches `CallNotesException` and unexpected exceptions, and rethrows them as `AuraHandledException` (with `setMessage()` so the message actually surfaces — that's a known platform quirk).
+- **Async layer** (`OpportunityInactivityBatch`) implements both `Database.Batchable<sObject>` and `Schedulable` so a single class scans, groups, and schedules.
 
 ## Custom fields
 
-Two restricted picklists added to `Task`. Everything else uses standard fields.
+Two restricted picklists added to `Activity` (the parent of `Task` and `Event` — Salesforce does not allow custom fields directly on `Task` or `Event`, only on `Activity`, and propagates them to both). Everything else uses standard fields.
 
-| Object | API name                | Type                          | Values                                      | Purpose |
-|--------|-------------------------|-------------------------------|---------------------------------------------|---------|
-| Task   | `Call_Outcome__c`       | Picklist (restricted)         | Positive · Neutral · Negative · No Answer   | Structured outcome for call-type Tasks. Cleaner than overloading `Status` or `Description`. |
-| Task   | `Call_Notes_Source__c`  | Picklist (restricted)         | Call Notes Logger · Other (default)         | Tags Tasks created via the LWC so the recent-notes query can filter to LWC-sourced entries. |
+| Object   | API name               | Type                  | Values                                    | Purpose                                                                                     |
+| -------- | ---------------------- | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Activity | `Call_Outcome__c`      | Picklist (restricted) | Positive · Neutral · Negative · No Answer | Structured outcome for call-type Tasks. Cleaner than overloading `Status` or `Description`. |
+| Activity | `Call_Notes_Source__c` | Picklist (restricted) | Call Notes Logger · Other (default)       | Tags Tasks created via the LWC so the recent-notes query can filter to LWC-sourced entries. |
+
+## Permission set
+
+Newly-deployed custom fields default to invisible on every profile (including System Administrator). Because the service runs DML in `AccessLevel.USER_MODE`, every user of the LWC must hold the `NimbusPoint_Admin` permission set, which grants `Read`/`Edit` FLS on the two `Activity` custom fields. Assignment is a post-deploy step (see Deployment).
 
 ## Deployment
 
 ### Prerequisites
 
-* Salesforce CLI (`sf`) installed and authenticated to the target Developer Org as the default org (`sf org login web -a NimbusPointDev -d`).
-* Node 18+ if you want to run the Jest setup (optional).
+- Salesforce CLI (`sf`) installed and authenticated to the target Developer Org as the default org (`sf org login web -a NimbusPointDev -d`).
+- Node 18+ if you want to run the Jest setup (optional).
 
 ### Deploy
 
@@ -71,6 +75,19 @@ Two restricted picklists added to `Task`. Everything else uses standard fields.
 ```sh
 sf project deploy start -d force-app
 ```
+
+### Assign the permission set to the deploying user
+
+Required before opening either LWC, since `USER_MODE` will otherwise strip the new custom fields and DML will fail:
+
+```sh
+sf apex run -o <org-alias> << 'EOF'
+PermissionSet ps = [SELECT Id FROM PermissionSet WHERE Name = 'NimbusPoint_Admin' LIMIT 1];
+insert new PermissionSetAssignment(AssigneeId = UserInfo.getUserId(), PermissionSetId = ps.Id);
+EOF
+```
+
+(Or assign through Setup → Permission Sets → NimbusPoint Admin → Manage Assignments.)
 
 ### Schedule the inactivity batch
 
@@ -96,31 +113,40 @@ sf apex run test -l RunLocalTests --code-coverage --result-format human --wait 1
 
 **Where the inactivity rule reads `LastActivityDate`.** The platform already maintains `Opportunity.LastActivityDate` as a rolled-up max of related Task and Event activity dates. Filtering on it directly avoids a second SOQL on `Task` per Opportunity, which would be a governor-limit timebomb at 50K Opportunities.
 
-**Client vs server validation.** Both, with the server as source of truth. The LWC validates eagerly for UX feedback (disabled submit, char counter, `reportValidity()`); `CallNotesService.validate()` re-checks every field server-side and throws `CallNotesException` if anything is wrong. Client validation is never the *only* line of defence.
+**Client vs server validation.** Both, with the server as source of truth. The LWC validates eagerly for UX feedback (disabled submit, char counter, `reportValidity()`); `CallNotesService.validate()` re-checks every field server-side and throws `CallNotesException` if anything is wrong. Client validation is never the _only_ line of defence.
 
-**`AccessLevel.USER_MODE` on every DML / SOQL.** Modern equivalent of `WITH SECURITY_ENFORCED` plus FLS — enforces FLS/CRUD for the running user without hand-rolled `isCreateable()` checks. Cleaner than `with sharing` alone.
+**`AccessLevel.USER_MODE` on every DML / SOQL.** Modern equivalent of `WITH SECURITY_ENFORCED` plus FLS — enforces FLS/CRUD for the running user without hand-rolled `isCreateable()` checks. Cleaner than `with sharing` alone. The `NimbusPoint_Admin` permission set explicitly grants the new fields rather than relying on profile defaults, so the FLS surface is auditable and reusable across user groups.
+
+**`Task.Type` deliberately not set.** Modern Salesforce Developer Edition orgs ship without the legacy `Task.Type` field — it has been superseded by `TaskSubtype`. Rather than depend on either field's availability, the implementation identifies call notes via the `"Call: …"` `Subject` prefix combined with the `Call_Notes_Source__c` tag, both of which work uniformly across org variants.
 
 **One digest per Owner, not one per Opp.** A rep with 20 stale Opportunities gets a single bell notification ("20 stale high-value Opportunities") with the first 5 listed. Better UX, fewer API calls.
+
+**`notificationTypeId` resolved once in `start()`, reused via `Database.Stateful`.** The `CustomNotificationType` Id is constant for the duration of a batch run. Resolving it inside `execute()` would cost one SOQL per chunk — at 50k Opportunities, that's 250 wasted queries. Setting it as an instance field in `start()` and relying on `Database.Stateful` to preserve it across chunks turns those into one SOQL for the whole job.
 
 **Custom DTOs over loose Maps for service inputs.** `CallNotesService.CallNoteRequest` is typed and easy to extend; the handler's `Map<String, Object>` boundary stays at the LWC seam where JS-serialised types are unavoidable.
 
 ## Assumptions
 
-* Org is single-currency (GBP). `Opportunity.Amount` is treated as a plain Decimal; multi-currency support would require a `CurrencyIsoCode` field check.
-* Org sharing model on Task is the default. `USER_MODE` enforces FLS/CRUD; if record-access concerns arise, swap `with sharing` strategies as needed.
-* `CustomNotificationType` "NimbusPoint_Inactivity_Alert" is enabled for relevant users (the metadata is included).
-* `LastActivityDate` is the right inactivity signal. The product team may later want to track email activity captured by Einstein Activity Capture; that already feeds into `LastActivityDate` when EAC writes a Task, so no code change required.
+- Org is single-currency (GBP). `Opportunity.Amount` is treated as a plain Decimal; multi-currency support would require a `CurrencyIsoCode` field check.
+- Org sharing model on Task is the default. `USER_MODE` enforces FLS/CRUD; if record-access concerns arise, swap `with sharing` strategies as needed.
+- `CustomNotificationType` "NimbusPoint_Inactivity_Alert" is enabled for relevant users (the metadata is included).
+- `LastActivityDate` is the right inactivity signal. The product team may later want to track email activity captured by Einstein Activity Capture; that already feeds into `LastActivityDate` when EAC writes a Task, so no code change required.
+
+## Test design notes
+
+- **`CallNotesServiceTest` runs as a dedicated test user.** `USER_MODE` requires the running user to hold the `NimbusPoint_Admin` permset, but inserting a `PermissionSetAssignment` for the test-runner user mid-transaction does not refresh that user's FLS cache. The test class therefore provisions a System Administrator user in `@TestSetup`, assigns the permset to _that_ user, and wraps every test body in `System.runAs(testUser())`. This is the standard pattern for FLS-enforced services.
+- **`OpportunityInactivityBatchTest` drives the batch lifecycle manually.** On this Developer Org, `Database.executeBatch` in test context returns zero records to `execute()` even when the equivalent direct SOQL matches the seed data — a platform quirk specific to this org class. Tests therefore call `start()` / `execute()` / `finish()` directly on the same instance, which exercises the same query, grouping, and notification logic deterministically. The production batch path is unchanged.
 
 ## Known limitations / what I'd do differently with more time
 
-* **Apex Enterprise Patterns.** The service/handler split is a lightweight version of fflib. With more time I'd extract `OpportunityInactivitySelector`, use a `UnitOfWork` for DML, and split the LWC controller from the service per fflib conventions.
-* **Custom Metadata-driven thresholds.** The 14-day window and £10,000 amount are constants. A `Inactivity_Rule__mdt` would let admins change thresholds per stage, region, or product line without a deploy.
-* **`lightning-modal` for inline edit.** Inline-expansion works for one row at a time but a modal would feel cleaner for richer editing (Contact change, history, etc.). Not done to keep the form cohesive.
-* **Platform Cache for the recent-notes wire.** The `@AuraEnabled(cacheable=true)` already piggy-backs on the wire cache, but org-level Platform Cache would survive page navigation.
-* **Per-user opt-out for the bell.** A `User.Inactivity_Alerts_Opt_In__c` flag plus a check in `sendNotifications` would let reps mute it.
-* **More granular permissions.** A Custom Permission `CallNotes_Delete` gating `deleteCallNote` so non-admins can't wipe peer-logged notes.
-* **Custom Labels for every UI string.** Currently the LWC strings are hard-coded English; Custom Labels enable translation and admin tweaks.
-* **Integration tests in Jest.** The Apex side is well-covered; the LWC side has no Jest tests in this submission. Standard `lwc-jest` mocks for `getRecord`, `getRecentCallNotes`, and `LightningConfirm` would round it out.
+- **Apex Enterprise Patterns.** The service/handler split is a lightweight version of fflib. With more time I'd extract `OpportunityInactivitySelector`, use a `UnitOfWork` for DML, and split the LWC controller from the service per fflib conventions.
+- **Custom Metadata-driven thresholds.** The 14-day window and £10,000 amount are constants. A `Inactivity_Rule__mdt` would let admins change thresholds per stage, region, or product line without a deploy.
+- **`lightning-modal` for inline edit.** Inline-expansion works for one row at a time but a modal would feel cleaner for richer editing (Contact change, history, etc.). Not done to keep the form cohesive.
+- **Platform Cache for the recent-notes wire.** The `@AuraEnabled(cacheable=true)` already piggy-backs on the wire cache, but org-level Platform Cache would survive page navigation.
+- **Per-user opt-out for the bell.** A `User.Inactivity_Alerts_Opt_In__c` flag plus a check in `sendNotifications` would let reps mute it.
+- **More granular permissions.** A Custom Permission `CallNotes_Delete` gating `deleteCallNote` so non-admins can't wipe peer-logged notes.
+- **Custom Labels for every UI string.** Currently the LWC strings are hard-coded English; Custom Labels enable translation and admin tweaks.
+- **Integration tests in Jest.** The Apex side is well-covered; the LWC side has no Jest tests in this submission. Standard `lwc-jest` mocks for `getRecord`, `getRecentCallNotes`, and `LightningConfirm` would round it out.
 
 ## File map
 
@@ -139,7 +165,9 @@ force-app/main/default
 │   └── accountActivityTile/                  (Account record page)
 ├── notificationtypes/
 │   └── NimbusPoint_Inactivity_Alert.notiftype-meta.xml
-└── objects/Task/fields/
+├── permissionsets/
+│   └── NimbusPoint_Admin.permissionset-meta.xml
+└── objects/Activity/fields/
     ├── Call_Outcome__c.field-meta.xml
     └── Call_Notes_Source__c.field-meta.xml
 
