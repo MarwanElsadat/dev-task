@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomNotificationType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customNotifTypeName>NimbusPoint_Inactivity_Alert</customNotifTypeName>
+    <description>Daily alert sent to Opportunity Owners when high-value Opportunities go 14+ days without activity.</description>
+    <desktop>true</desktop>
+    <masterLabel>Opportunity Inactivity Alert</masterLabel>
+    <mobile>true</mobile>
+</CustomNotificationType>
