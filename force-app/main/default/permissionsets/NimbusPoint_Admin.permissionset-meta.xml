@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>NimbusPoint Admin</label>
+    <description
+  >Grants FLS on the Activity custom fields used by the Call Notes Logger LWC. Newly-deployed custom fields default to invisible on every profile (including System Administrator), so any caller running USER_MODE DML must hold this permset.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Activity.Call_Outcome__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Activity.Call_Notes_Source__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+</PermissionSet>

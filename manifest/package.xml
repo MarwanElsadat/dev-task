@@ -25,5 +25,9 @@
         <members>NimbusPoint_Inactivity_Alert</members>
         <name>CustomNotificationType</name>
     </types>
+    <types>
+        <members>NimbusPoint_Admin</members>
+        <name>PermissionSet</name>
+    </types>
     <version>66.0</version>
 </Package>
