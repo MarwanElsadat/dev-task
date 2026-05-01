@@ -4,4 +4,5 @@
  * unexpected platform errors (DML/SOQL/governor) so the handler can decide
  * how to surface them to the LWC.
  */
-public inherited sharing class CallNotesException extends Exception {}
+public inherited sharing class CallNotesException extends Exception {
+}

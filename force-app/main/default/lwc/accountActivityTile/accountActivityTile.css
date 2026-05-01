@@ -1,9 +1,9 @@
 .kpi-tile {
-    background-color: var(--slds-g-color-neutral-base-95, #f3f3f3);
-    border-radius: 0.25rem;
-    padding: 0.75rem 1rem;
-    text-align: center;
+  background-color: var(--slds-g-color-neutral-base-95, #f3f3f3);
+  border-radius: 0.25rem;
+  padding: 0.75rem 1rem;
+  text-align: center;
 }
 .kpi-tile p {
-    margin: 0;
+  margin: 0;
 }
