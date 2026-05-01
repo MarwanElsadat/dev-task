@@ -13,8 +13,8 @@
  */
 public with sharing class CallNotesService {
 
-    @TestVisible private static final Integer NOTES_MAX_LENGTH = 1000;
-    @TestVisible private static final Set<String> ALLOWED_OUTCOMES = new Set<String>{
+    public static final Integer NOTES_MAX_LENGTH = 1000;
+    public static final Set<String> ALLOWED_OUTCOMES = new Set<String>{
         'Positive', 'Neutral', 'Negative', 'No Answer'
     };
     private static final String CALL_TYPE = 'Call';
