@@ -1,0 +1,94 @@
+<template>
+    <lightning-card title="Pipeline Activity" icon-name="standard:opportunity">
+        <lightning-button-icon
+            slot="actions"
+            icon-name="utility:refresh"
+            alternative-text="Refresh"
+            title="Refresh"
+            variant="bare"
+            onclick={handleRefresh}>
+        </lightning-button-icon>
+
+        <template lwc:if={isLoading}>
+            <div class="slds-p-around_medium slds-align_absolute-center">
+                <lightning-spinner alternative-text="Loading…" size="small"></lightning-spinner>
+            </div>
+        </template>
+
+        <template lwc:elseif={error}>
+            <div class="slds-p-around_medium slds-text-color_error">{error}</div>
+        </template>
+
+        <template lwc:elseif={hasData}>
+            <!-- KPI tiles -->
+            <div class="slds-grid slds-gutters slds-p-horizontal_medium">
+                <div class="slds-col slds-size_1-of-3 kpi-tile">
+                    <p class="slds-text-title slds-text-color_weak">Open Opportunities</p>
+                    <p class="slds-text-heading_large">{summary.openCount}</p>
+                </div>
+                <div class="slds-col slds-size_1-of-3 kpi-tile">
+                    <p class="slds-text-title slds-text-color_weak">Pipeline Value</p>
+                    <p class="slds-text-heading_large">
+                        <lightning-formatted-number
+                            value={summary.pipelineValue}
+                            format-style="currency"
+                            currency-display-as="symbol">
+                        </lightning-formatted-number>
+                    </p>
+                </div>
+                <div class="slds-col slds-size_1-of-3 kpi-tile">
+                    <p class="slds-text-title slds-text-color_weak">At Risk (14d+)</p>
+                    <p class={atRiskClass}>{summary.atRiskCount}</p>
+                </div>
+            </div>
+
+            <!-- Opportunity list -->
+            <div class="slds-p-horizontal_medium slds-p-bottom_medium slds-m-top_medium">
+                <template lwc:if={hasOpportunities}>
+                    <ul class="slds-has-dividers_top-space">
+                        <template for:each={summary.opportunities} for:item="opp">
+                            <li key={opp.id} class="slds-item slds-p-vertical_x-small">
+                                <div class="slds-grid slds-grid_vertical-align-center">
+                                    <div class="slds-col slds-grow">
+                                        <a href="javascript:void(0);"
+                                           data-id={opp.id}
+                                           onclick={handleNavigate}
+                                           class="slds-text-link">
+                                            {opp.name}
+                                        </a>
+                                        <p class="slds-text-body_small slds-text-color_weak">
+                                            {opp.stageName}
+                                            <template lwc:if={opp.amount}>
+                                                · <lightning-formatted-number
+                                                    value={opp.amount}
+                                                    format-style="currency"
+                                                    currency-display-as="symbol">
+                                                </lightning-formatted-number>
+                                            </template>
+                                            <template lwc:if={opp.lastActivityDate}>
+                                                · last activity
+                                                <lightning-formatted-date-time
+                                                    value={opp.lastActivityDate}
+                                                    year="numeric" month="short" day="2-digit">
+                                                </lightning-formatted-date-time>
+                                            </template>
+                                            <template lwc:else>
+                                                · no recent activity
+                                            </template>
+                                        </p>
+                                    </div>
+                                    <div class="slds-col slds-no-flex">
+                                        <span class={opp.pillClass}>{opp.status}</span>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </template>
+                <template lwc:else>
+                    <p class="slds-text-color_weak">No open Opportunities for this Account.</p>
+                </template>
+            </div>
+        </template>
+    </lightning-card>
+</template>
