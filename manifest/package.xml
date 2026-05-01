@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>
         <members>CallNotesHandler</members>
@@ -17,8 +17,8 @@
         <name>LightningComponentBundle</name>
     </types>
     <types>
-        <members>Task.Call_Outcome__c</members>
-        <members>Task.Call_Notes_Source__c</members>
+        <members>Activity.Call_Outcome__c</members>
+        <members>Activity.Call_Notes_Source__c</members>
         <name>CustomField</name>
     </types>
     <types>

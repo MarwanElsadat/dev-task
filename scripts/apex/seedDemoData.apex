@@ -31,7 +31,7 @@ insert opps;
 
 // One recent Task → keeps "Active Big Deal" off the at-risk list
 insert new Task(
-    Subject = 'Discovery call', Type = 'Call', Status = 'Completed',
+    Subject = 'Discovery call', Status = 'Completed',
     ActivityDate = Date.today().addDays(-2),
     Description = 'Walked through pricing options.',
     WhatId = opps[2].Id, WhoId = contacts[0].Id,
@@ -39,7 +39,7 @@ insert new Task(
 );
 // One old Task on Stale Mid-Value → still qualifies as inactive
 insert new Task(
-    Subject = 'Initial outreach', Type = 'Call', Status = 'Completed',
+    Subject = 'Initial outreach', Status = 'Completed',
     ActivityDate = Date.today().addDays(-25),
     Description = 'Left voicemail.',
     WhatId = opps[1].Id, WhoId = contacts[1].Id,

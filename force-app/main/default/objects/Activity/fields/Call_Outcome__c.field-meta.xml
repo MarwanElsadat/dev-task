@@ -1,8 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Call_Outcome__c</fullName>
-    <description>Structured outcome for call-type Tasks logged via the Call Notes Logger LWC. Used for reporting on call effectiveness across Opportunities.</description>
-    <inlineHelpText>Outcome of the call. Required when Type = Call.</inlineHelpText>
+    <description
+  >Structured outcome for call-type Tasks logged via the Call Notes Logger LWC. Used for reporting on call effectiveness across Opportunities.</description>
+    <inlineHelpText
+  >Outcome of the call. Required when Type = Call.</inlineHelpText>
     <label>Call Outcome</label>
     <required>false</required>
     <trackTrending>false</trackTrending>
