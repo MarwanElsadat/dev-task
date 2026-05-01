@@ -6,6 +6,7 @@
         <members>CallNotesException</members>
         <members>CallNotesServiceTest</members>
         <members>AccountActivityController</members>
+        <members>AccountActivityControllerTest</members>
         <members>OpportunityInactivityBatch</members>
         <members>OpportunityInactivityBatchTest</members>
         <name>ApexClass</name>
