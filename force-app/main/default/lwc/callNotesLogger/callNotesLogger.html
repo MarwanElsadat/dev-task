@@ -1,0 +1,189 @@
+<template>
+    <lightning-card title="Log a Call Note" icon-name="standard:task">
+        <template lwc:if={isSaving}>
+            <lightning-spinner alternative-text="Saving..." size="small"></lightning-spinner>
+        </template>
+
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <!-- Contact lookup — limited to Contacts on the Opportunity's Account -->
+            <template lwc:if={accountId}>
+                <lightning-record-picker
+                    label="Contact"
+                    placeholder="Search related Contacts"
+                    object-api-name="Contact"
+                    matching-info={contactMatchingInfo}
+                    display-info={contactDisplayInfo}
+                    filter={contactFilter}
+                    value={contactId}
+                    onchange={handleContactChange}>
+                </lightning-record-picker>
+            </template>
+            <template lwc:else>
+                <p class="slds-text-color_weak slds-text-body_small">
+                    Loading related contacts…
+                </p>
+            </template>
+
+            <lightning-input
+                type="date"
+                label="Call Date"
+                value={callDate}
+                onchange={handleDateChange}
+                class="slds-m-top_small"
+                required>
+            </lightning-input>
+
+            <lightning-combobox
+                label="Outcome"
+                value={outcome}
+                placeholder="Select outcome"
+                options={outcomeOptions}
+                onchange={handleOutcomeChange}
+                class="slds-m-top_small"
+                required>
+            </lightning-combobox>
+
+            <lightning-textarea
+                label="Notes"
+                value={notes}
+                onchange={handleNotesChange}
+                max-length="1000"
+                message-when-too-long="Notes cannot exceed 1000 characters."
+                placeholder="Briefly describe what was discussed…"
+                class="slds-m-top_small"
+                required>
+            </lightning-textarea>
+            <p class="slds-text-align_right slds-text-body_small slds-text-color_weak slds-m-top_xx-small"
+               aria-live="polite">
+                {charsUsed} / 1000 characters
+            </p>
+
+            <div class="slds-m-top_medium slds-text-align_right">
+                <lightning-button
+                    label="Reset"
+                    variant="neutral"
+                    onclick={handleReset}
+                    disabled={isSaving}
+                    class="slds-m-right_x-small">
+                </lightning-button>
+                <lightning-button
+                    label="Log Call Note"
+                    variant="brand"
+                    onclick={handleSubmit}
+                    disabled={isSubmitDisabled}>
+                </lightning-button>
+            </div>
+        </div>
+
+        <!-- Recent notes -->
+        <div slot="footer" class="slds-p-around_medium slds-border_top">
+            <header class="slds-grid slds-grid_vertical-align-center slds-m-bottom_small">
+                <h3 class="slds-text-heading_small slds-grow">Recent Call Notes</h3>
+                <lightning-button-icon
+                    icon-name="utility:refresh"
+                    alternative-text="Refresh"
+                    title="Refresh"
+                    variant="bare"
+                    onclick={handleRefresh}>
+                </lightning-button-icon>
+            </header>
+
+            <template lwc:if={isLoadingRecent}>
+                <p class="slds-text-color_weak">Loading…</p>
+            </template>
+
+            <template lwc:elseif={hasRecent}>
+                <ul class="slds-has-dividers_around-space">
+                    <template for:each={recentNotes} for:item="note">
+                        <li key={note.Id} class="slds-item slds-p-around_small note-row">
+                            <template lwc:if={note.editing}>
+                                <!-- Inline edit -->
+                                <lightning-textarea
+                                    label="Notes"
+                                    value={note.draftNotes}
+                                    data-id={note.Id}
+                                    onchange={handleEditNotesChange}
+                                    max-length="1000">
+                                </lightning-textarea>
+                                <lightning-combobox
+                                    label="Outcome"
+                                    value={note.draftOutcome}
+                                    options={outcomeOptions}
+                                    data-id={note.Id}
+                                    onchange={handleEditOutcomeChange}
+                                    class="slds-m-top_x-small">
+                                </lightning-combobox>
+                                <lightning-input
+                                    type="date"
+                                    label="Call Date"
+                                    value={note.draftDate}
+                                    data-id={note.Id}
+                                    onchange={handleEditDateChange}
+                                    class="slds-m-top_x-small">
+                                </lightning-input>
+                                <div class="slds-text-align_right slds-m-top_x-small">
+                                    <lightning-button
+                                        label="Cancel"
+                                        data-id={note.Id}
+                                        onclick={handleEditCancel}
+                                        class="slds-m-right_xx-small">
+                                    </lightning-button>
+                                    <lightning-button
+                                        label="Save"
+                                        variant="brand"
+                                        data-id={note.Id}
+                                        onclick={handleEditSave}>
+                                    </lightning-button>
+                                </div>
+                            </template>
+                            <template lwc:else>
+                                <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-start">
+                                    <div class="slds-col slds-grow">
+                                        <div class="slds-grid slds-grid_vertical-align-center slds-m-bottom_xx-small">
+                                            <span class={note.pillClass}>{note.Call_Outcome__c}</span>
+                                            <span class="slds-text-body_small slds-text-color_weak slds-m-left_small">
+                                                <lightning-formatted-date-time value={note.ActivityDate}
+                                                    year="numeric" month="short" day="2-digit">
+                                                </lightning-formatted-date-time>
+                                            </span>
+                                            <template lwc:if={note.Who.Name}>
+                                                <span class="slds-text-body_small slds-text-color_weak slds-m-left_small">
+                                                    · {note.Who.Name}
+                                                </span>
+                                            </template>
+                                        </div>
+                                        <p class="slds-text-body_regular note-description">{note.Description}</p>
+                                    </div>
+                                    <div class="slds-col slds-no-flex">
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            alternative-text="Edit"
+                                            title="Edit"
+                                            variant="bare"
+                                            data-id={note.Id}
+                                            onclick={handleEditStart}>
+                                        </lightning-button-icon>
+                                        <lightning-button-icon
+                                            icon-name="utility:delete"
+                                            alternative-text="Delete"
+                                            title="Delete"
+                                            variant="bare"
+                                            data-id={note.Id}
+                                            onclick={handleDelete}>
+                                        </lightning-button-icon>
+                                    </div>
+                                </div>
+                            </template>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+
+            <template lwc:else>
+                <p class="slds-text-color_weak">
+                    No call notes logged yet for this Opportunity.
+                </p>
+            </template>
+        </div>
+    </lightning-card>
+</template>
