@@ -14,6 +14,15 @@
 public with sharing class AccountActivityController {
   private static final Integer INACTIVITY_DAYS = 14;
 
+  /**
+   * Cap on the number of Opportunity rows returned to the LWC. KPIs
+   * (openCount, pipelineValue, atRiskCount) continue to reflect every
+   * open Opportunity regardless of this cap. Limit is server-side so
+   * payload stays small even on Accounts with hundreds of open deals.
+   */
+  @TestVisible
+  private static final Integer MAX_DISPLAY_ROWS = 5;
+
   @AuraEnabled(cacheable=true)
   public static AccountActivitySummary getAccountActivitySummary(Id accountId) {
     if (accountId == null) {
@@ -55,15 +64,20 @@ public with sharing class AccountActivityController {
       if (atRisk) {
         summary.atRiskCount += 1;
       }
-      OpportunitySummary row = new OpportunitySummary();
-      row.id = o.Id;
-      row.name = o.Name;
-      row.amount = o.Amount;
-      row.stageName = o.StageName;
-      row.closeDate = o.CloseDate;
-      row.lastActivityDate = o.LastActivityDate;
-      row.status = atRisk ? 'At Risk' : 'Active';
-      summary.opportunities.add(row);
+      // KPIs above always count the full set; only the first
+      // MAX_DISPLAY_ROWS rows (already ordered by Amount DESC) are
+      // surfaced to the UI.
+      if (summary.opportunities.size() < MAX_DISPLAY_ROWS) {
+        OpportunitySummary row = new OpportunitySummary();
+        row.id = o.Id;
+        row.name = o.Name;
+        row.amount = o.Amount;
+        row.stageName = o.StageName;
+        row.closeDate = o.CloseDate;
+        row.lastActivityDate = o.LastActivityDate;
+        row.status = atRisk ? 'At Risk' : 'Active';
+        summary.opportunities.add(row);
+      }
     }
     return summary;
   }

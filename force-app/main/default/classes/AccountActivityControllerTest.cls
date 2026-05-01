@@ -133,4 +133,53 @@ private class AccountActivityControllerTest {
       Assert.isNotNull(ex);
     }
   }
+
+  @IsTest
+  static void summary_capsDisplayedRowsButKpisCountAll() {
+    // Fresh Account so we control the open-Opp count exactly. The seed
+    // Account's 3 open Opps stay isolated.
+    Account big = new Account(Name = 'Big Pipeline Co');
+    insert big;
+
+    List<Opportunity> opps = new List<Opportunity>();
+    Decimal expectedPipeline = 0;
+    for (Integer i = 0; i < 7; i++) {
+      // Vary Amount so ORDER BY Amount DESC produces a stable sort.
+      Decimal amt = 10000 + (i * 1000);
+      expectedPipeline += amt;
+      opps.add(
+        new Opportunity(
+          Name = 'Big Opp ' + i,
+          AccountId = big.Id,
+          StageName = 'Prospecting',
+          CloseDate = Date.today().addDays(45),
+          Amount = amt
+        )
+      );
+    }
+    insert opps;
+
+    AccountActivityController.AccountActivitySummary s = AccountActivityController.getAccountActivitySummary(
+      big.Id
+    );
+
+    Assert.areEqual(7, s.openCount, 'KPI counts every open Opp.');
+    Assert.areEqual(
+      expectedPipeline,
+      s.pipelineValue,
+      'Pipeline sums every open Opp.'
+    );
+    Assert.areEqual(
+      AccountActivityController.MAX_DISPLAY_ROWS,
+      s.opportunities.size(),
+      'Displayed list is capped at MAX_DISPLAY_ROWS.'
+    );
+
+    // Top of the list should be the highest-Amount Opp (Big Opp 6 = 16000).
+    Assert.areEqual(
+      'Big Opp 6',
+      s.opportunities[0].name,
+      'Top row should be the highest-Amount Opp (ORDER BY Amount DESC).'
+    );
+  }
 }
