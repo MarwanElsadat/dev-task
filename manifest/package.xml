@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>CallNotesHandler</members>
+        <members>CallNotesService</members>
+        <members>CallNotesException</members>
+        <members>CallNotesServiceTest</members>
+        <members>AccountActivityController</members>
+        <members>OpportunityInactivityBatch</members>
+        <members>OpportunityInactivityBatchTest</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>callNotesLogger</members>
+        <members>accountActivityTile</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>Task.Call_Outcome__c</members>
+        <members>Task.Call_Notes_Source__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>NimbusPoint_Inactivity_Alert</members>
+        <name>CustomNotificationType</name>
+    </types>
+    <version>66.0</version>
+</Package>
